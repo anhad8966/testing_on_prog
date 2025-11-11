@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>For Anjali &lt;3</title>
+    
+    <!-- 1. Tailwind CSS (for the 2D scene UI) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 2. Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Poppins:wght@400;500&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
+
+    <style>
+        /* --- TERMINAL STYLES (The Overlay) --- */
+        #terminal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: #0c0c0c;
+            color: #00ff00;
+            font-family: 'Fira Code', monospace;
+            padding: 20px;
+            box-sizing: border-box;
+            overflow-y: auto;
+            z-index: 9999; /* On top of everything */
+            transition: opacity 1.5s ease-in-out;
+        }
+        
+        .prompt-line { margin-bottom: 10px; display: flex; }
+        .prompt-prefix { color: #00ff00; margin-right: 10px; flex-shrink: 0; }
+        .typing-text { color: #cccccc; white-space: pre-wrap; }
+        .cursor { display: inline-block; width: 8px; height: 16px; background-color: #00ff00; animation: blink 1s infinite; }
+        .user-input-line { margin-top: 10px; display: none; align-items: center; }
+        .input-field {
+            background: transparent; border: none; color: #00ff00; font-family: 'Fira Code', monospace;
+            font-size: 1rem; outline: none; flex-grow: 1; margin-left: 10px;
+        }
+        .option-text { color: #ffff00; font-style: italic; margin-top: 5px; margin-left: 20px; display: block; }
+        
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+        /* --- 2D SCENE STYLES --- */
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Poppins', sans-serif; }
+        .font-serif { font-family: 'Playfair Display', serif; }
+
+        /* Styles for the romantic scene part */
+        #romantic-scene {
+            /* This is your final, beautiful landscape background */
+            background-image: url('https://i.ibb.co/gbyWFJZv/Bright-Colorful-Aesthetic-Moodboard-Photo-Collage-Desktop-Wallpaper.png');
+            background-size: cover;
+            background-position: center;
+            opacity: 0; /* Hidden by default */
+            transition: opacity 1.5s ease-in-out;
+        }
+
+        #letterContent {
+            max-height: 70vh;
+            overflow-y: auto;
+        }
+
+        /* Arrow styles */
+        #customArrow {
+            width: 160px; /* The 2x zoomed size */
+            height: auto;
+            /* No top margin needed here, flexbox will handle spacing */
+            margin: 0 auto;
+            animation: bounce 1s infinite; /* Keep the bounce effect */
+        }
+
+        @keyframes bounce {
+            0%, 100% { transform: translateY(-5%); }
+            50% { transform: translateY(5%); }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ========================================= -->
+    <!-- PART 1: THE COMMAND PROMPT (Visible First) -->
+    <!-- ========================================= -->
+    <div id="terminal-overlay">
+        <div id="terminal-content"></div>
+        <div id="user-input-container" class="user-input-line">
+            <span class="prompt-prefix">C:\Users\Anhad></span>
+            <input type="text" id="user-input" class="input-field" autocomplete="off">
+        </div>
+    </div>
+
+    <!-- ========================================= -->
+    <!-- PART 2: THE 2D SCENE (Hidden Behind)      -->
+    <!-- ========================================= -->
+    <div id="romantic-scene" class="hidden min-h-screen flex items-center justify-center p-4">
+        
+        <!-- Main Content Box -->
+        <div class="bg-black/60 backdrop-blur-sm rounded-2xl shadow-2xl p-8 text-center text-white w-[350px] h-[350px] flex flex-col items-center justify-center">
+            
+            <!-- The animated arrow and text -->
+            <div class="mb-4">
+                <h2 class="text-2xl md:text-2xl font-bold tracking-wide font-serif leading-tight">I have write something for you <br>👉👈</h2>
+                
+                <!-- Custom Arrow Image -->
+                <img id="customArrow" src="https://i.ibb.co/BDRWKjK/Untitled-design-removebg-preview.png" alt="Arrow pointing down" class="mt-2">
+            </div>
+            
+            <!-- Clickable Letter Image -->
+            <img id="letterButton" 
+                 src="https://i.ibb.co/nsfwtTgd/Untitled-design-1-removebg-preview.png" 
+                 class="h-32 w-auto mx-auto cursor-pointer hover:scale-110 transition-transform duration-300 mt-2" 
+                 alt="A hand holding a letter">
+        </div>
+
+        <!-- The Letter Modal (Hidden by default) -->
+        <div id="letterModal" class="fixed inset-0 bg-black/80 flex items-center justify-center p-4 hidden transition-opacity duration-300">
+            <!-- Modal Content Box -->
+            <div class="bg-amber-50 rounded-lg shadow-xl max-w-lg w-full p-6 md:p-8 relative">
+                <!-- Close Button -->
+                <button id="closeButton" class="absolute top-2 right-4 text-4xl font-bold text-gray-600 hover:text-black">&times;</button>
+                
+                <!-- Letter content goes here -->
+                <div id="letterContent" class="text-gray-800 pr-4">
+                    <!-- Letter Text is Injected by JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // --- TERMINAL LOGIC ---
+        const terminalContent = document.getElementById('terminal-content');
+        const inputContainer = document.getElementById('user-input-container');
+        const userInput = document.getElementById('user-input');
+        const terminalOverlay = document.getElementById('terminal-overlay');
+
+        const typeSpeed = 90; // Typing speed
+        let currentStep = 0;
+
+        async function typeLine(text, extraClass = '') {
+            const lineDiv = document.createElement('div');
+            lineDiv.className = 'prompt-line';
+            
+            const prefix = document.createElement('span');
+            prefix.className = 'prompt-prefix';
+            prefix.textContent = 'C:\\Users\\Anhad>';
+            
+            const textSpan = document.createElement('span');
+            textSpan.className = `typing-text ${extraClass}`;
+            
+            const cursor = document.createElement('span');
+            cursor.className = 'cursor';
+
+            lineDiv.appendChild(prefix);
+            lineDiv.appendChild(textSpan);
+            lineDiv.appendChild(cursor);
+            
+            terminalContent.appendChild(lineDiv);
+            window.scrollTo(0, document.body.scrollHeight);
+
+            for (let i = 0; i < text.length; i++) {
+                textSpan.textContent += text.charAt(i);
+                await new Promise(r => setTimeout(r, typeSpeed));
+            }
+            
+            cursor.remove();
+        }
+
+        async function startTerminal() {
+            await typeLine("Initializing love_protocol.exe...");
+            await new Promise(r => setTimeout(r, 500));
+            await typeLine("Loading core memories...");
+            await new Promise(r => setTimeout(r, 800));
+            
+            await typeLine("Hey baby girlllll..................");
+            await typeLine("----------------------------------------------------------------");
+            await typeLine("Happy 3rd month of your relationship..........");
+            await typeLine("----------------------------------------------------------------");
+            await typeLine("sorry, I know today we cant meet because of your examsssssss...");
+            await typeLine("----------------------------------------------------------------");
+            await typeLine("But i made this for you................................");
+            await typeLine("ʕ⁠っ⁠•⁠ᴥ⁠•⁠ʔ⁠っ   ->   (⁠ ⁠◜⁠‿⁠◝⁠ ⁠)⁠♡");
+            await typeLine("----------------------------------------------------------------");
+            await typeLine("(I m trying this first time to sorry for any error)");
+            await typeLine("Here's some question i want to ask you!! 👉👈");
+            await new Promise(r => setTimeout(r, 500));
+
+            // Question 1
+            await typeLine("");
+            await typeLine("1. Do you LOVE me!!!!!! (⁠◕⁠ᴗ⁠◕⁠✿⁠)");
+            await typeLine("   (Type 'YES' or 'NO')", 'option-text');
+            
+            currentStep = 1;
+            enableInput();
+        }
+
+        function enableInput() {
+            inputContainer.style.display = 'flex';
+            userInput.value = '';
+            userInput.focus();
+            document.addEventListener('click', focusInput);
+        }
+        
+        function focusInput() { userInput.focus(); }
+        function disableInput() { 
+            inputContainer.style.display = 'none'; 
+            document.removeEventListener('click', focusInput);
+        }
+
+        userInput.addEventListener('keypress', async function (e) {
+            if (e.key === 'Enter') {
+                const input = userInput.value.trim().toLowerCase();
+                disableInput();
+                
+                await typeLine(userInput.value);
+
+                switch(currentStep) {
+                    case 1:
+                        if (input === 'yes') {
+                            await showFinalMessage();
+                        } else if (input === 'no') {
+                            await runStep2();
+                        } else {
+                            await typeLine("Invalid option. Try 'YES' or 'NO'.", 'option-text');
+                            enableInput();
+                        }
+                        break;
+                    case 2:
+                        if (input === 'yes') {
+                            await runStep3();
+                        } else if (input === 'no, i love you') {
+                            await showFinalMessage();
+                        } else {
+                            await typeLine("Invalid option.", 'option-text');
+                            enableInput();
+                        }
+                        break;
+                    case 3:
+                        if (input.includes('yes anhad i love you')) {
+                            await runStep4();
+                        } else {
+                            await typeLine("Invalid option.", 'option-text');
+                            enableInput();
+                        }
+                        break;
+                    case 4:
+                         if (input === 'a little') {
+                            await runStep5();
+                        } else if (input === 'more than you') {
+                            await showFinalMessage("Hehe, we'll see about that (⁠ ⁠˘⁠ ⁠³⁠˘⁠)⁠♥");
+                        } else {
+                            await typeLine("Try 'A little' or 'More than you'", 'option-text');
+                            enableInput();
+                        }
+                        break;
+                    case 5:
+                        if (input === 'ok ok i love you a lot') {
+                            await showFinalMessage("That's what I thought (⁠ ⁠˘⁠ ⁠³⁠˘⁠)⁠♥");
+                        } else {
+                            await typeLine("Come on... type 'ok ok i love you a lot'", 'option-text');
+                            enableInput();
+                        }
+                        break;
+                }
+            }
+        });
+
+        async function runStep2() {
+            await typeLine("");
+            await typeLine("2. Are you shure you don't love me!!!!!!!!!!");
+            await typeLine("   (Type 'YES' or 'No, I LOVE YOU')", 'option-text');
+            currentStep = 2;
+            enableInput();
+        }
+
+        async function runStep3() {
+            await typeLine("");
+            await typeLine("3. Okey this is last time I M asking Anjali do you love me...bcoz I Love you ꒰⁠⑅⁠ᵕ⁠༚⁠ᵕ⁠꒱⁠˖⁠♡");
+            await typeLine("   (Type 'YES anhad i Love you' or 'YES anhad i love you very much')", 'option-text');
+            await typeLine("   HEHEHEHE option to mere haat mai hai >o<", 'option-text');
+            currentStep = 3;
+            enableInput();
+        }
+
+        async function runStep4() {
+            await typeLine("");
+            await typeLine("4. But like, how much? (⁠ ⁠ꈍ⁠ᴗ⁠ꈍ⁠)");
+            await typeLine("   (Type 'A little' or 'More than you')", 'option-text');
+            currentStep = 4;
+            enableInput();
+        }
+
+        async function runStep5() {
+             await typeLine("");
+            await typeLine("5. A LIIIITTLE? (⁠ಠ⁠_⁠ಠ⁠)");
+            await typeLine("   (Type 'ok ok i love you a lot')", 'option-text');
+            currentStep = 5;
+            enableInput();
+        }
+
+        async function showFinalMessage(preMessage = "") {
+            if(preMessage) await typeLine(preMessage);
+            await typeLine("");
+            await typeLine("YAAAAAAAAAA I KNOW you LOVE ME BBGurllll (⁠ 9⁠/⁠^⁠ω⁠^⁠)⁠/⁠♪⁠♪");
+            await new Promise(r => setTimeout(r, 1000));
+            await typeLine("Wait... I have one more surprise for you...");
+            await new Promise(r => setTimeout(r, 1500));
+            await typeLine("Unlocking romantic_scene.exe in 3...");
+            await new Promise(r => setTimeout(r, 1000));
+            await typeLine("2...");
+            await new Promise(r => setTimeout(r, 1000));
+            await typeLine("1...");
+            
+            // THE MAGIC TRANSITION
+            terminalOverlay.style.opacity = '0'; // Fade out terminal
+            
+            const romanticScene = document.getElementById('romantic-scene');
+            romanticScene.classList.remove('hidden'); // Unhide romantic scene
+            
+            setTimeout(() => {
+                terminalOverlay.style.display = 'none'; // Remove terminal from view
+                romanticScene.style.opacity = '1'; // Fade in romantic scene
+            }, 1500);
+        }
+
+        // --- 2D SCENE LOGIC ---
+
+        // --- THIS IS YOUR FINAL LETTER ---
+        const letterText = `
+            <h3 class="text-3xl font-bold font-serif mb-6 text-gray-900">My Dearest KUTTIYA 😘,</h3>
+            <p class="mb-4 text-lg">
+                Happy 3rd month anniversary! ❤️
+            </p>
+            <p class="mb-4 text-lg">
+                I know we can't meet today because of your exams, but thats what I did for you phle to soch raha tha ki is bar kuch nhi then I open my gemmin and think kuch build karte hai, and then mane ye build kar diya, ofc gemini se but bhai ismai bhot error aay 😫 to mane bhot sari coding and editing khud se ki hai like skeleton gemini se le liya and puri body mane bana diya 😆.
+            </p>
+            <p class="mb-4 text-lg">
+                Baki or kya bolu yarr sab kuch to bol hi deta hu jab aapke ke haat sahi jaga hote hai (ofc my neck 😆), but bro really i have many things to say in my mind but i dont know where to start and where to finsh, jab bhi likhne ki bari aati hai kabhi likh nhi pata hu but bro thanks for coming in my life like i always thought ki tu itni cool ladki jo itni party karti hai itne sigma repl deti hai itni hot dikhti hai😗 (bro you really looks too hot aaj kal bhot hi jada 😫 dur re mujese kahi mai hi na kuch kar du aapke sath🌚) muj jese chomu simple time na dene wale ladke ko kese mil gai yarr 🫠 but jo bhi ho I really appreciate my self for pulling a baddie like you 😉, and bro muje bhot acche se pata hai after all this thing and apne bich kitne bhi jhagde ho jay kitna bhi ladh le kuch bhi karle i never done with you yarrr and mai bilkul choot de raha hu bhai kitne bhi jhagde ho jay kuch bhi ho jay if you want hugss kisses sit on me or wants to go outside or anything you want i am always there never hesited about all this thing jo ki aap karte ho and bhai mere pass bhot time hai tere liye tuje kabhi bhi ghumna ho kuch bhar khana ho kahi chlna ho ya kuch bhi just say me or bas text kar de bhai i promis you i am not free  just say i am not free rn plzz tu mat soch itna ki free hoga ki nhi kya kar raha hoga call karu ki nhi iska kam to nhi choot jay ga i m always free for you 🫠😉 and at the last bro I LOVEEEEEEEEEEEEEEEEEEEEEE SOOOOOOOOOOOOOOOO MUCHHHHHHHHHHHHHH mwah mwah mwah mwah💓💓💓💓💓💓.
+            </p>
+            <p class="mb-4 text-lg font-medium">
+                BAKI bolne ko to bhot kuch hai but kya kya likhu 🫠 (or ha agar yaha aane tak koi dikat aai to extremly sorry (adjust karo baccha bhot mahant se banaya hai💓) also sorry for any spelling mistake🫠 )
+            </p>
+            <p class="mt-8 text-xl font-serif font-semibold">
+                AAPKA-DILJALA-AASHIQ,<br>
+                NARANGI-BILLA 😘 &lt;3
+            </p>
+        `;
+        // ----------------------------------
+
+        function setupRomanticScene() {
+            const letterButton = document.getElementById('letterButton');
+            const letterModal = document.getElementById('letterModal');
+            const closeButton = document.getElementById('closeButton');
+            const letterContent = document.getElementById('letterContent');
+
+            // Inject the letter text
+            letterContent.innerHTML = letterText;
+
+            // Show the modal
+            letterButton.addEventListener('click', () => {
+                letterModal.classList.remove('hidden');
+                letterModal.style.opacity = '1';
+            });
+
+            // Hide the modal
+            closeButton.addEventListener('click', () => {
+                letterModal.classList.add('hidden');
+                letterModal.style.opacity = '0';
+            });
+
+            // Hide the modal by clicking outside
+            letterModal.addEventListener('click', (e) => {
+                if (e.target === letterModal) {
+                    letterModal.classList.add('hidden');
+                    letterModal.style.opacity = '0';
+                }
+            });
+        }
+
+        // Start the whole thing
+        window.onload = () => {
+            startTerminal(); // Start the terminal first
+            setupRomanticScene(); // Setup the 2D scene listeners in the background
+        };
+
+    </script>
+</body>
+</html>
